@@ -17,6 +17,28 @@ struct Enemy {
 };
 
 
+struct Achievement {
+    bool unlocked;
+    const char* message;
+};
+
+struct AchievementPopup {
+    bool active;
+    const char* message;
+    float timer;
+    const float duration = 3.0f; // 3 segundos na tela
+};
+
+
+Achievement ach_firstKill = {false, "Baixa Confirmada: Primeiro Inimigo Destruído !"};
+Achievement ach_firstDeath = {false, "Uma Palavra: MELHORE."};
+Achievement ach_firstReload = {false, "A Munição é Infinita, mas tem que Recarregar ;>"};
+Achievement ach_noDamage = {false, "Blindado: Nenhum Dano Tomado !"};
+
+AchievementPopup popup = {false, "", 0.0f};
+
+
+
 int main() {
     InitWindow(800, 900, "Space Shooter");
     SetTargetFPS(60);
@@ -85,8 +107,29 @@ int main() {
     // CARREGA A NAVE DO JOGADOR
     Texture2D nave = LoadTexture("nave.png");
 
+    // FUNÇÃO PARA DESBLOQUEAR E EXIBIR CONQUISTAS
+    auto UnlockAchievement = [&](Achievement& ach) {
+        if (!ach.unlocked) {
+            ach.unlocked = true;
+            popup.active = true;
+            popup.message = ach.message;
+            popup.timer = popup.duration;
+        }
+    };
+
+    // VARIAVEIS DE CONTROLE DO JOGO
+     bool hasTakenDamage = false;
+
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
+
+        // LÓGICA POP-UP DA CONQUISTA
+        if(popup.active){
+            popup.timer -= dt;
+            if(popup.timer <= 0){
+                popup.active = false;
+            }
+        }
 
         // TELA INICIAL NOVA
 
@@ -151,7 +194,12 @@ int main() {
             reloadTimer += dt;
             if (reloadTimer >= reloadInterval) {
                 reloadTimer = 0;
-                if (ammo < maxAmmo) ammo++;
+                if (ammo < maxAmmo){
+                    if(ammo < maxAmmo - 1){
+                        UnlockAchievement(ach_firstReload);
+                    }
+                    ammo++;
+                }
             }
 
             // ENEMY SPAWN
@@ -185,6 +233,10 @@ int main() {
                 if (e.pos.y + 18 >= base.y) {
                     e.alive = false;
                     lives--;
+
+                    UnlockAchievement(ach_firstDeath);
+                    hasTakenDamage = true;
+
                     if (lives <= 0) gameOver = true;
                 }
             }
@@ -203,6 +255,8 @@ int main() {
                         b.alive = false;
                         e.alive = false;
                         score += 10;
+
+                        UnlockAchievement(ach_firstKill);
                     }
 
                 }
@@ -219,6 +273,12 @@ int main() {
                           [](Enemy &e){ return !e.alive; }),
                 enemies.end()
             );
+
+            //Conquista de Alta Pontuação sem tomar dano
+            if(score >= 500 && !hasTakenDamage){
+                UnlockAchievement(ach_noDamage);
+            }
+
         }
 
         // Reiniciar
@@ -229,6 +289,7 @@ int main() {
             lives = 3;
             ammo = maxAmmo;
             gameOver = false;
+            hasTakenDamage = false;
         }
 
         //         DESENHO
@@ -282,6 +343,23 @@ int main() {
         if (gameOver) {
             DrawText("GAME OVER", 260, 380, 40, RED);
             DrawText("Pressione R para reiniciar", 240, 430, 20, GRAY);
+        }
+
+        if(popup.active){
+            int rectWidth = 500;
+            int rectHeight = 60;
+            int rectX = (800 - rectWidth) / 2;
+            int rectY = 900 - base.height - rectHeight - 20;
+
+            DrawRectangle(rectX, rectY, rectWidth, rectHeight, DARKGREEN);
+            DrawRectangleLines(rectX, rectY, rectWidth, rectHeight, LIME);
+
+            const char* achTitle = "CONQUISTA DESBLOQUEADA !";
+            int titleWidth = MeasureText(achTitle, 18);
+            DrawText(achTitle, rectX + (rectWidth - titleWidth) / 2, rectY + 8, 18, LIME);
+
+            int msgWidth = MeasureText(popup.message, 14);
+            DrawText(popup.message, rectX + (rectWidth - msgWidth) / 2, rectY + 35, 14, WHITE);
         }
 
         EndDrawing();
